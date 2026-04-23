@@ -11,7 +11,7 @@ constexpr double F_KM_M = 1e3;
 constexpr double G = 6.6743e-11;
 
 constexpr double t_0 = 0.0;
-constexpr double t_f = 20.0 * 31557600.0;
+constexpr double t_f = 1.0 * 31536000.0;
 constexpr double dt = 800.0;
 
 constexpr size_t M = static_cast<size_t>((t_f - t_0) / dt);
@@ -87,10 +87,10 @@ void acceleration(Bodies& b) {
             //Distance squared between i and j.
             double r2 = dx*dx + dy*dy + dz*dz;
 
-            double inverse_r3 = (r2 * std::sqrt(r2));
+            double r3 = (r2 * std::sqrt(static_cast<long double>(r2)));
 
             //Evaluate acceleration per unit of distance.
-            double A =(G * b.m[j]) / inverse_r3;
+            double A =(G * b.m[j]) / r3;
 
             //Apply acceleration on the 3 components.
             b.ax[i] += A * dx;
@@ -146,7 +146,7 @@ double energy_evaluation(Bodies& b) {
             double r2 = dx*dx + dy*dy + dz*dz;
 
             //-= here since the potential is negative.
-            V -= G * (b.m[i] * b.m[j]) / std::sqrt(r2);
+            V -= G * (b.m[i] * b.m[j]) / std::sqrt(static_cast<long double>(r2));
         }
     }
 
@@ -171,17 +171,29 @@ void simulation(Bodies& b, std::vector<double>& t, std::vector<double>& E,
                 const std::string& path1) {
 
     std::ofstream Energy(path1);
+    std::ofstream PositionSample("pos.dat");
     Energy.precision(std::numeric_limits<double>::max_digits10);
     Energy << std::scientific;
+
+    const size_t sample_body_idx = 3;
+    const double sample_period_seconds = 10.0 * 24.0 * 3600.0;
+    const size_t sample_stride = static_cast<size_t>(sample_period_seconds / dt) > 0
+                                 ? static_cast<size_t>(sample_period_seconds / dt)
+                                 : 1;
     
     //For each timestep we apply leapfrog integration and record energy.
-    for (int i = 0; i < t.size(); i++) {
+    for (size_t i = 0; i < t.size(); i++) {
+        if (i % sample_stride == 0) {
+            PositionSample << t[i] << " " << b.x[sample_body_idx] << " " << b.y[sample_body_idx] << " " << b.z[sample_body_idx]
+            << " " << b.vx[sample_body_idx] << " " << b.vy[sample_body_idx] << " " << b.vz[sample_body_idx] << '\n';
+        }
         leapfrog_integrator(b);
         E[i] = energy_evaluation(b);
         Energy << t[i] << " " << E[i] << '\n';
     }
 
     Energy.close();
+    PositionSample.close();
 
     std::cout << "Simulation successful !\n";
 }
@@ -197,7 +209,7 @@ std::vector<double> RG_evaluate(Bodies& b) {
 
         double r2 = dx*dx + dy*dy + dz*dz;
 
-        RG[i-1] = std::sqrt(r2);
+        RG[i-1] = std::sqrt(static_cast<long double>(r2));
     }
     return RG;
 }
@@ -217,11 +229,11 @@ void export_data(Bodies& b, const std::string& path_in, const std::string& path_
         size_t idx = static_cast<size_t>(body["id"].get<int>());
         File << body["name"] << '\n';
         File << "Positions: ";
-        File << b.x[idx] << " " << b.y[idx] << " " << b.z[idx] << '\n';
+        File << b.x[idx] / F_KM_M << " " << b.y[idx] / F_KM_M << " " << b.z[idx] / F_KM_M << '\n';
         File << "Velocities: ";
-        File << b.vx[idx] << " " << b.vy[idx] << " " << b.vz[idx] << '\n';
+        File << b.vx[idx] / F_KM_M << " " << b.vy[idx] / F_KM_M << " " << b.vz[idx] / F_KM_M << '\n';
         if (idx > 0) {
-            File << "RG: " << RG[idx-1] << '\n';
+            File << "RG: " << RG[idx-1] / F_KM_M << '\n';
         }
 
         File << '\n';
